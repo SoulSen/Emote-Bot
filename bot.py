@@ -44,12 +44,15 @@ async def on_message(event):
     async with bot._session.get('https://discordemoji.com/api/') as resp:
         logger.info(f'{event.user.fallback_name} emote is being searched in the API')
         resp = await resp.json()
-        emote_url = [_emote for _emote in resp if _emote['title'].lower() == emote.lower()][0]['image']
+
+    emote_url = [_emote for _emote in resp if _emote['title'].lower() == emote.lower()
+                 and not _emote['category'] == '9']
 
     if not emote_url:
         logger.info(f'{event.user.fallback_name} emote was not found in the API')
         return
 
+    emote_url = emote_url[0]['image']
     logger.info(f'{event.user.fallback_name} emote was found in the API')
 
     async with event.conversation.focused():
@@ -63,24 +66,29 @@ async def on_message(event):
 
             logger.info(f'{event.user.fallback_name} emote is being resized')
 
-            partial = functools.partial(resize_image, file, (64, 64))
+            if emote_url.endswith('.gif'):
+                _type = 'GIF'
+            else:
+                _type = 'PNG'
+
+            partial = functools.partial(resize_image, file, (64, 64), _type)
             file = await bot.loop.run_in_executor(None, partial)
 
             logger.info(f'{event.user.fallback_name} emote is being sent to conversation')
 
             await event.respond(image=hanger.Image(
-                bot, file, filename='emote.png'
+                bot, file, filename=f'emote.{_type}'
             ))
 
             logger.info(f'{event.user.fallback_name} emote was successfully sent to the conversation')
 
 
-def resize_image(img, size):
+def resize_image(img, size, _type="PNG"):
     im = Image.open(img)
     im = im.resize(size)
 
     file = BytesIO()
-    im.save(file, format="PNG")
+    im.save(file, format=_type)
     file.seek(0)
 
     return file
